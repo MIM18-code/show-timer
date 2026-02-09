@@ -698,6 +698,7 @@ function getAdjustedTargets() {
 
   // Adjusted targets: distribute drift across ALL remaining segments
   // INCLUDING the current one (so its countdown reflects the adjustment)
+  // BUT only redistribute if drift exceeds 90 seconds — small drift stays local
   const adjusted = [...targets];
 
   // Adjustable = current segment + all future segments
@@ -705,7 +706,7 @@ function getAdjustedTargets() {
   const adjustableEnd = n;
   const adjustableCount = adjustableEnd - adjustableStart;
 
-  if (adjustableCount > 0 && totalDrift !== 0) {
+  if (adjustableCount > 0 && Math.abs(totalDrift) > 90) {
     const perSeg = totalDrift / adjustableCount;
     for (let i = adjustableStart; i < adjustableEnd; i++) {
       adjusted[i] = Math.max(30, targets[i] - perSeg); // floor at 30s
@@ -728,34 +729,40 @@ function updateUI() {
   document.getElementById('segLabel').innerHTML =
     `${seg.name.replace(/(\d+)/, '<span class="num">$1</span>')}`;
 
-  // Timer display: countdown
+  // Timer display: countdown (use cached refs to avoid DOM flicker)
   const remaining = segTarget - state.segElapsed;
   const display = document.getElementById('timerDisplay');
   const sub = document.getElementById('timerSub');
 
-  if (remaining >= 0) {
-    display.textContent = formatTime(remaining);
-    if (remaining <= 30) {
-      display.className = 'timer-display warning';
-      sub.textContent = 'Wrapping up...';
-      sub.className = 'timer-sub warning';
-    } else {
-      display.className = 'timer-display on-time';
-      sub.textContent = `${formatTime(segTarget)} target`;
-      sub.className = 'timer-sub on-time';
-    }
+  const newTime = remaining >= 0 ? formatTime(remaining) : '-' + formatTime(Math.abs(remaining));
+  const newState = remaining < 0 ? 'over' : remaining <= 30 ? 'warning' : 'on-time';
+
+  // Only update DOM when values actually change
+  if (display.textContent !== newTime) display.textContent = newTime;
+
+  const newClass = 'timer-display ' + newState;
+  if (display.className !== newClass) display.className = newClass;
+
+  let newSub, newSubClass;
+  if (remaining >= 0 && remaining <= 30) {
+    newSub = 'Wrapping up...';
+    newSubClass = 'timer-sub warning';
+  } else if (remaining >= 0) {
+    newSub = `${formatTime(segTarget)} target`;
+    newSubClass = 'timer-sub on-time';
   } else {
-    display.textContent = '-' + formatTime(Math.abs(remaining));
-    display.className = 'timer-display over';
-    sub.textContent = `OVER by ${formatTime(Math.abs(remaining))}`;
-    sub.className = 'timer-sub over';
+    newSub = `OVER by ${formatTime(Math.abs(remaining))}`;
+    newSubClass = 'timer-sub over';
   }
+  if (sub.textContent !== newSub) sub.textContent = newSub;
+  if (sub.className !== newSubClass) sub.className = newSubClass;
 
   // Progress
   const pct = Math.min(100, (state.segElapsed / segTarget) * 100);
   const bar = document.getElementById('progressBar');
   bar.style.width = pct + '%';
-  bar.className = 'progress-bar ' + (remaining < 0 ? 'over' : remaining < 30 ? 'warning' : 'on-time');
+  const barClass = 'progress-bar ' + newState;
+  if (bar.className !== barClass) bar.className = barClass;
 
   // Buttons
   const btnSP = document.getElementById('btnStartPause');
@@ -773,8 +780,12 @@ function updateUI() {
 
   // Total clock
   updateTotalClock();
-  // Sidebar live update
-  updateSidebar();
+  // Sidebar: throttle to once per second to avoid flicker from full innerHTML rebuild
+  const now = Date.now();
+  if (!updateUI._lastSidebar || now - updateUI._lastSidebar > 1000) {
+    updateUI._lastSidebar = now;
+    updateSidebar();
+  }
 }
 
 function updateTotalClock() {
