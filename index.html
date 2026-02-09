@@ -696,20 +696,27 @@ function getAdjustedTargets() {
     }
   }
 
-  // Adjusted targets: distribute drift across ALL remaining segments
-  // INCLUDING the current one (so its countdown reflects the adjustment)
-  // BUT only redistribute if drift exceeds 90 seconds — small drift stays local
+  // Adjusted targets:
+  // Under 90s drift → dump it all on the NEXT segment only
+  // 90s+ drift → spread evenly across ALL remaining segments
   const adjusted = [...targets];
 
-  // Adjustable = current segment + all future segments
-  const adjustableStart = state.segActuals.length; // current segment index
-  const adjustableEnd = n;
-  const adjustableCount = adjustableEnd - adjustableStart;
+  const nextSegIdx = state.segActuals.length; // current segment index (first non-completed)
+  const remainingCount = n - nextSegIdx;
 
-  if (adjustableCount > 0 && Math.abs(totalDrift) > 90) {
-    const perSeg = totalDrift / adjustableCount;
-    for (let i = adjustableStart; i < adjustableEnd; i++) {
-      adjusted[i] = Math.max(30, targets[i] - perSeg); // floor at 30s
+  if (remainingCount > 0 && totalDrift !== 0) {
+    if (Math.abs(totalDrift) <= 90) {
+      // Small drift: absorb into the next segment only
+      // If we're currently on a segment, that's the one that absorbs it
+      // If there's a segment after current, put it there instead
+      const absorber = (remainingCount > 1) ? nextSegIdx + 1 : nextSegIdx;
+      adjusted[absorber] = Math.max(30, targets[absorber] - totalDrift);
+    } else {
+      // Large drift: spread across all remaining segments
+      const perSeg = totalDrift / remainingCount;
+      for (let i = nextSegIdx; i < n; i++) {
+        adjusted[i] = Math.max(30, targets[i] - perSeg);
+      }
     }
   }
 
