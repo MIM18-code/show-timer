@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Show Timer</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #14141f;
+    --surface2: #1e1e2e;
+    --border: #2a2a3e;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,0.12);
+    --yellow: #eab308;
+    --yellow-bg: rgba(234,179,8,0.12);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.12);
+    --blue: #3b82f6;
+    --blue-bg: rgba(59,130,246,0.12);
+    --purple: #a855f7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* === LAYOUT === */
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100dvh;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .show-selector {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .show-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .show-btn.active {
+    background: var(--blue-bg);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .total-clock {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 14px;
+    color: var(--text-dim);
+    text-align: right;
+    min-width: 180px;
+  }
+
+  .total-clock span { color: var(--text); font-weight: 600; }
+
+  /* === MAIN CONTENT === */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    overflow: hidden;
+  }
+
+  /* === CENTER: TIMER === */
+  .timer-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 12px;
+  }
+
+  .segment-label {
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+
+  .segment-label .num {
+    color: var(--blue);
+  }
+
+  .timer-display {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: clamp(80px, 15vw, 140px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -2px;
+    transition: color 0.3s;
+  }
+
+  .timer-display.on-time { color: var(--green); }
+  .timer-display.warning { color: var(--yellow); }
+  .timer-display.over { color: var(--red); }
+  .timer-display.idle { color: var(--text-dim); }
+  .timer-display.paused { opacity: 1; }
+  .timer-display.paused-blink { opacity: 0.3; }
+
+  .timer-sub {
+    font-size: 16px;
+    font-weight: 500;
+    height: 24px;
+  }
+
+  .timer-sub.on-time { color: var(--green); }
+  .timer-sub.warning { color: var(--yellow); }
+  .timer-sub.over { color: var(--red); }
+
+  /* Progress bar */
+  .progress-container {
+    width: 80%;
+    max-width: 500px;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: visible;
+    position: relative;
+  }
+
+  .progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s linear, background 0.3s;
+    max-width: 100%;
+  }
+
+  .progress-bar.on-time { background: var(--green); }
+  .progress-bar.warning { background: var(--yellow); }
+  .progress-bar.over { background: var(--red); }
+
+  /* === CONTROLS === */
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .ctrl-btn {
+    padding: 14px 28px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 90px;
+  }
+
+  .ctrl-btn:active { transform: scale(0.96); }
+
+  .ctrl-btn.primary {
+    background: var(--green);
+    border-color: var(--green);
+    color: #000;
+  }
+
+  .ctrl-btn.primary.pause {
+    background: var(--yellow);
+    border-color: var(--yellow);
+  }
+
+  .ctrl-btn.danger {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .ctrl-btn:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* === SIDEBAR: SEGMENTS === */
+  .sidebar {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .sidebar-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    padding: 0 4px;
+  }
+
+  .seg-card {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .seg-card.completed {
+    background: var(--surface2);
+    opacity: 0.6;
+  }
+
+  .seg-card.active {
+    background: var(--blue-bg);
+    border-color: var(--blue);
+  }
+
+  .seg-card.upcoming {
+    background: var(--surface2);
+  }
+
+  .seg-card.intro-card {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    margin-top: 8px;
+  }
+
+  .seg-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+
+  .seg-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .seg-time {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .seg-detail {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .seg-detail .drift-over { color: var(--red); font-weight: 600; }
+  .seg-detail .drift-under { color: var(--green); font-weight: 600; }
+  .seg-detail .adjusted { color: var(--yellow); }
+
+  /* === INTRO RESULT === */
+  .intro-result {
+    text-align: center;
+    padding: 16px;
+  }
+
+  .intro-result .label {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .intro-result .time {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  /* === STATE: NOT STARTED === */
+  .start-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .start-screen h2 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .start-screen p {
+    color: var(--text-dim);
+    font-size: 14px;
+    text-align: center;
+    max-width: 360px;
+  }
+
+  /* === SHOW COMPLETE OVERLAY === */
+  .show-complete {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(10,10,15,0.95);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 10;
+  }
+
+  .show-complete.visible {
+    display: flex;
+  }
+
+  .show-complete h2 {
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .main {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto;
+    }
+    .sidebar {
+      border-left: none;
+      border-top: 1px solid var(--border);
+      max-height: 200px;
+      display: flex;
+      gap: 6px;
+      padding: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .sidebar-title { display: none; }
+    .seg-card { min-width: 120px; margin-bottom: 0; }
+    .seg-card.intro-card { margin-top: 0; }
+    .timer-display { font-size: clamp(60px, 12vw, 100px); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="show-selector" id="showSelector"></div>
+    <div class="total-clock" id="totalClock">
+      Elapsed <span id="elapsed">00:00</span> &nbsp;/&nbsp; Target <span id="target">00:00</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" style="position:relative;">
+    <!-- TIMER AREA -->
+    <div class="timer-area" id="timerArea">
+      <div class="start-screen" id="startScreen">
+        <h2 id="showTitle">Select a Show</h2>
+        <p>Choose a show above, then tap Start to begin timing Section 1. Segments auto-adjust to keep the final segment on time.</p>
+        <button class="ctrl-btn primary" id="bigStartBtn" onclick="startShow()" style="padding:18px 48px;font-size:18px;">Start</button>
+      </div>
+      <div id="activeTimer" style="display:none;width:100%;text-align:center;">
+        <div class="segment-label" id="segLabel">Section <span class="num">1</span></div>
+        <div class="timer-display idle" id="timerDisplay">00:00</div>
+        <div class="timer-sub" id="timerSub">&nbsp;</div>
+        <div class="progress-container">
+          <div class="progress-bar on-time" id="progressBar" style="width:0%"></div>
+        </div>
+        <div class="controls" style="justify-content:center;margin-top:16px;">
+          <button class="ctrl-btn" id="btnBack" onclick="prevSegment()" disabled>&larr; Back</button>
+          <button class="ctrl-btn primary" id="btnStartPause" onclick="toggleStartPause()">Start</button>
+          <button class="ctrl-btn" id="btnNext" onclick="nextSegment()">Next &rarr;</button>
+          <button class="ctrl-btn danger" id="btnReset" onclick="resetShow()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHOW COMPLETE -->
+    <div class="show-complete" id="showComplete">
+      <h2>All Segments Done</h2>
+      <div style="margin-top:12px;font-size:14px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;">Intro needs to be</div>
+      <div class="time" id="introTime" style="font-family:'SF Mono','Menlo',monospace;font-size:clamp(80px,14vw,130px);font-weight:700;color:var(--green);line-height:1;">0:10</div>
+      <div id="introTimerLive" style="display:none;">
+        <div style="font-family:'SF Mono','Menlo',monospace;font-size:clamp(60px,10vw,100px);font-weight:700;line-height:1;" id="introCountdown">0:10</div>
+        <div style="font-size:14px;margin-top:4px;color:var(--text-dim);" id="introCountdownSub"></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;" id="introControls">
+        <button class="ctrl-btn primary" id="btnIntroStart" onclick="startIntroTimer()" style="padding:14px 32px;font-size:16px;">Time the Intro</button>
+      </div>
+      <div style="margin-top:16px;padding:12px 20px;background:var(--surface2);border-radius:10px;text-align:center;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;">Segments total</div>
+        <div style="font-family:'SF Mono','Menlo',monospace;font-size:20px;font-weight:600;" id="totalActual">00:00</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:6px;" id="driftSummary"></div>
+      </div>
+      <button class="ctrl-btn danger" onclick="resetShow()" style="margin-top:16px;">Reset Show</button>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-title">Segments</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SHOW DATA =====
+const SHOWS = {
+  touchdown: {
+    name: "Touchdown Baltimore",
+    introTarget: 10, // seconds
+    segments: [
+      { name: "Section 1", target: 8 * 60 },
+      { name: "Section 2", target: 8 * 60 },
+      { name: "Section 3", target: 7 * 60 + 40 },
+      { name: "Section 4", target: 7 * 60 + 44 },
+      { name: "Section 5", target: 8 * 60 },
+      { name: "Section 6", target: 2 * 60 },
+    ]
+  },
+  walltowall: {
+    name: "Wall to Wall Baseball",
+    introTarget: 10,
+    segments: [
+      { name: "Section 1", target: 7 * 60 + 30 },
+      { name: "Section 2", target: 7 * 60 + 15 },
+      { name: "Section 3", target: 7 * 60 + 15 },
+      { name: "Section 4", target: 7 * 60 + 15 },
+      { name: "Section 5", target: 7 * 60 + 15 },
+      { name: "Section 6", target: 7 * 60 + 15 },
+    ]
+  },
+  ballgame: {
+    name: "Take Me Out to the Ballgame",
+    introTarget: 10,
+    segments: [
+      { name: "Section 1", target: 5 * 60 + 30 },
+      { name: "Section 2", target: 6 * 60 },
+      { name: "Section 3", target: 5 * 60 + 30 },
+      { name: "Section 4", target: 2 * 60 + 7 },
+    ]
+  }
+};
+
+// ===== STATE =====
+let currentShow = null;
+let state = {
+  phase: 'idle', // idle, running, paused, complete
+  currentSeg: 0,
+  segElapsed: 0, // seconds elapsed in current segment (fractional)
+  segActuals: [], // actual seconds used per completed segment
+  showStartTime: null,
+  segStartTime: null,
+  totalPausedMs: 0,
+  pauseStartTime: null,
+};
+
+let timerInterval = null;
+let blinkInterval = null;
+
+// ===== INIT =====
+function init() {
+  const sel = document.getElementById('showSelector');
+  sel.innerHTML = '';
+  for (const [key, show] of Object.entries(SHOWS)) {
+    const btn = document.createElement('button');
+    btn.className = 'show-btn' + (currentShow === key ? ' active' : '');
+    btn.textContent = show.name;
+    btn.onclick = () => selectShow(key);
+    sel.appendChild(btn);
+  }
+  if (!currentShow) selectShow('touchdown');
+}
+
+function selectShow(key) {
+  if (state.phase === 'running') return; // don't switch while running
+  currentShow = key;
+  resetShow();
+  init();
+}
+
+function resetShow() {
+  stopTimer();
+  state = {
+    phase: 'idle',
+    currentSeg: 0,
+    segElapsed: 0,
+    segActuals: [],
+    showStartTime: null,
+    segStartTime: null,
+    totalPausedMs: 0,
+    pauseStartTime: null,
+  };
+  document.getElementById('showComplete').classList.remove('visible');
+  document.getElementById('startScreen').style.display = 'flex';
+  document.getElementById('activeTimer').style.display = 'none';
+  document.getElementById('showTitle').textContent = SHOWS[currentShow].name;
+  updateSidebar();
+  updateTotalClock();
+  // Re-enable show buttons
+  document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = '');
+}
+
+// ===== TIMER ENGINE =====
+function startShow() {
+  state.phase = 'running';
+  state.showStartTime = Date.now();
+  state.segStartTime = Date.now();
+  state.totalPausedMs = 0;
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('activeTimer').style.display = '';
+  // Disable show switching
+  document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = 'none');
+  startTimer();
+  updateUI();
+}
+
+function toggleStartPause() {
+  if (state.phase === 'idle') {
+    startShow();
+    return;
+  }
+  if (state.phase === 'running') {
+    // Pause
+    state.phase = 'paused';
+    state.pauseStartTime = Date.now();
+    stopTimer();
+    startBlink();
+    updateUI();
+  } else if (state.phase === 'paused') {
+    // Resume
+    state.totalPausedMs += Date.now() - state.pauseStartTime;
+    state.pauseStartTime = null;
+    state.phase = 'running';
+    stopBlink();
+    startTimer();
+    updateUI();
+  }
+}
+
+function startTimer() {
+  stopTimer();
+  timerInterval = setInterval(tick, 100);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function startBlink() {
+  stopBlink();
+  let on = true;
+  const el = document.getElementById('timerDisplay');
+  blinkInterval = setInterval(() => {
+    on = !on;
+    el.classList.toggle('paused', on);
+    el.classList.toggle('paused-blink', !on);
+  }, 500);
+}
+
+function stopBlink() {
+  if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+  const el = document.getElementById('timerDisplay');
+  el.classList.remove('paused', 'paused-blink');
+}
+
+function tick() {
+  if (state.phase !== 'running') return;
+  const now = Date.now();
+  state.segElapsed = (now - state.segStartTime - state.totalPausedMs + sumPrevPausedForSeg()) / 1000;
+  // Note: totalPausedMs is cumulative for entire show; segStartTime is when seg started
+  // We need per-segment elapsed = (now - segStartTime - pausedDuringSeg)
+  // Simplification: store segStartTime after accounting for pauses
+  // Actually let's recalc: segElapsed = time since seg start minus any pauses during this seg
+  state.segElapsed = (now - state.segStartTime) / 1000;
+  updateUI();
+}
+
+// Fix: we reset segStartTime on segment change and on resume, so segElapsed is simply now - segStartTime
+// On pause resume, we adjust segStartTime forward by pause duration
+
+function nextSegment() {
+  if (state.phase === 'idle') return;
+  const show = SHOWS[currentShow];
+  const actualSec = state.segElapsed;
+  state.segActuals.push(actualSec);
+
+  if (state.currentSeg >= show.segments.length - 1) {
+    // Show complete
+    completeShow();
+    return;
+  }
+
+  state.currentSeg++;
+  state.segStartTime = Date.now();
+  state.segElapsed = 0;
+
+  if (state.phase === 'paused') {
+    // Stay paused but reset seg timer
+    state.pauseStartTime = Date.now();
+  }
+
+  updateUI();
+  updateSidebar();
+}
+
+function prevSegment() {
+  if (state.currentSeg === 0) return;
+  // Undo: remove last actual, go back
+  state.segActuals.pop();
+  state.currentSeg--;
+  state.segStartTime = Date.now();
+  state.segElapsed = 0;
+  if (state.phase === 'paused') {
+    state.pauseStartTime = Date.now();
+  }
+  updateUI();
+  updateSidebar();
+}
+
+function completeShow() {
+  state.phase = 'complete';
+  stopTimer();
+  stopBlink();
+
+  const show = SHOWS[currentShow];
+  const totalTarget = show.segments.reduce((s, seg) => s + seg.target, 0) + show.introTarget;
+  const totalActualSegments = state.segActuals.reduce((s, t) => s + t, 0);
+  const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
+  const introNeeded = show.introTarget - drift;
+
+  document.getElementById('introTime').textContent = formatTime(Math.max(0, introNeeded));
+  document.getElementById('introTime').style.color =
+    introNeeded < 3 ? 'var(--red)' : introNeeded < 8 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('totalActual').textContent = formatTime(totalActualSegments);
+
+  const driftText = drift > 0
+    ? `Segments ran ${formatTime(drift)} over. Intro needs to be shorter.`
+    : drift < 0
+    ? `Segments ran ${formatTime(Math.abs(drift))} under. Intro can be longer.`
+    : `Segments hit target exactly.`;
+  document.getElementById('driftSummary').textContent = driftText;
+
+  document.getElementById('showComplete').classList.add('visible');
+  document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = '');
+  updateSidebar();
+}
+
+// ===== DRIFT / ADJUSTMENT CALCULATION =====
+function getAdjustedTargets() {
+  const show = SHOWS[currentShow];
+  const targets = show.segments.map(s => s.target);
+  const n = targets.length;
+
+  // Calculate total drift from completed segments
+  let totalDrift = 0;
+  for (let i = 0; i < state.segActuals.length; i++) {
+    totalDrift += state.segActuals[i] - targets[i];
+  }
+
+  // Only include live drift from the current segment if the host has gone OVER
+  // (under-time is meaningless mid-segment — they haven't finished yet)
+  // Once a segment is completed, both over and under drift get distributed
+  if (state.phase === 'running' || state.phase === 'paused') {
+    const curTarget = targets[state.currentSeg];
+    const curDrift = state.segElapsed - curTarget;
+    if (state.currentSeg < n && curDrift > 0) {
+      totalDrift += curDrift;
+    }
+  }
+
+  // Adjusted targets: distribute drift across ALL remaining segments
+  // INCLUDING the current one (so its countdown reflects the adjustment)
+  const adjusted = [...targets];
+
+  // Adjustable = current segment + all future segments
+  const adjustableStart = state.segActuals.length; // current segment index
+  const adjustableEnd = n;
+  const adjustableCount = adjustableEnd - adjustableStart;
+
+  if (adjustableCount > 0 && totalDrift !== 0) {
+    const perSeg = totalDrift / adjustableCount;
+    for (let i = adjustableStart; i < adjustableEnd; i++) {
+      adjusted[i] = Math.max(30, targets[i] - perSeg); // floor at 30s
+    }
+  }
+
+  return adjusted;
+}
+
+// ===== UI UPDATES =====
+function updateUI() {
+  const show = SHOWS[currentShow];
+  const seg = show.segments[state.currentSeg];
+  const adjusted = getAdjustedTargets();
+  const segTarget = state.currentSeg < state.segActuals.length
+    ? show.segments[state.currentSeg].target
+    : adjusted[state.currentSeg];
+
+  // Segment label
+  document.getElementById('segLabel').innerHTML =
+    `${seg.name.replace(/(\d+)/, '<span class="num">$1</span>')}`;
+
+  // Timer display: countdown
+  const remaining = segTarget - state.segElapsed;
+  const display = document.getElementById('timerDisplay');
+  const sub = document.getElementById('timerSub');
+
+  if (remaining >= 0) {
+    display.textContent = formatTime(remaining);
+    if (remaining <= 30) {
+      display.className = 'timer-display warning';
+      sub.textContent = 'Wrapping up...';
+      sub.className = 'timer-sub warning';
+    } else {
+      display.className = 'timer-display on-time';
+      sub.textContent = `${formatTime(segTarget)} target`;
+      sub.className = 'timer-sub on-time';
+    }
+  } else {
+    display.textContent = '-' + formatTime(Math.abs(remaining));
+    display.className = 'timer-display over';
+    sub.textContent = `OVER by ${formatTime(Math.abs(remaining))}`;
+    sub.className = 'timer-sub over';
+  }
+
+  // Progress
+  const pct = Math.min(100, (state.segElapsed / segTarget) * 100);
+  const bar = document.getElementById('progressBar');
+  bar.style.width = pct + '%';
+  bar.className = 'progress-bar ' + (remaining < 0 ? 'over' : remaining < 30 ? 'warning' : 'on-time');
+
+  // Buttons
+  const btnSP = document.getElementById('btnStartPause');
+  if (state.phase === 'running') {
+    btnSP.textContent = 'Pause';
+    btnSP.className = 'ctrl-btn primary pause';
+  } else if (state.phase === 'paused') {
+    btnSP.textContent = 'Resume';
+    btnSP.className = 'ctrl-btn primary';
+  }
+
+  document.getElementById('btnBack').disabled = state.currentSeg === 0;
+  document.getElementById('btnNext').textContent =
+    state.currentSeg >= show.segments.length - 1 ? 'Finish' : 'Next \u2192';
+
+  // Total clock
+  updateTotalClock();
+  // Sidebar live update
+  updateSidebar();
+}
+
+function updateTotalClock() {
+  const show = SHOWS[currentShow];
+  if (!show) return;
+
+  const totalTarget = show.segments.reduce((s, seg) => s + seg.target, 0);
+  document.getElementById('target').textContent = formatTime(totalTarget);
+
+  if (state.phase === 'idle') {
+    document.getElementById('elapsed').textContent = '00:00';
+    return;
+  }
+
+  const completedTime = state.segActuals.reduce((s, t) => s + t, 0);
+  const currentTime = (state.phase === 'running' || state.phase === 'paused') ? state.segElapsed : 0;
+  document.getElementById('elapsed').textContent = formatTime(completedTime + currentTime);
+}
+
+function updateSidebar() {
+  const show = SHOWS[currentShow];
+  if (!show) return;
+
+  const sidebar = document.getElementById('sidebar');
+  const adjusted = getAdjustedTargets();
+
+  let html = '<div class="sidebar-title">Segments</div>';
+
+  show.segments.forEach((seg, i) => {
+    const isCompleted = i < state.segActuals.length;
+    const isActive = i === state.currentSeg && state.phase !== 'idle' && state.phase !== 'complete';
+    const isUpcoming = !isCompleted && !isActive;
+    const isFinal = i === show.segments.length - 1;
+
+    let cardClass = 'seg-card';
+    if (isCompleted) cardClass += ' completed';
+    else if (isActive) cardClass += ' active';
+    else cardClass += ' upcoming';
+
+    let timeDisplay = '';
+    let detail = '';
+
+    if (isCompleted) {
+      const actual = state.segActuals[i];
+      const drift = actual - seg.target;
+      timeDisplay = formatTime(actual);
+      if (drift > 1) {
+        detail = `<span class="drift-over">+${formatTime(drift)} over</span>`;
+      } else if (drift < -1) {
+        detail = `<span class="drift-under">${formatTime(Math.abs(drift))} under</span>`;
+      } else {
+        detail = 'On time';
+      }
+    } else if (isActive) {
+      timeDisplay = formatTime(Math.max(0, adjusted[i] - state.segElapsed));
+      const remaining = adjusted[i] - state.segElapsed;
+      if (remaining < 0) {
+        detail = `<span class="drift-over">OVER ${formatTime(Math.abs(remaining))}</span>`;
+      } else if (remaining < 30) {
+        detail = '<span class="adjusted">Wrapping up</span>';
+      } else {
+        detail = `Target: ${formatTime(seg.target)}`;
+      }
+    } else {
+      // Upcoming
+      timeDisplay = formatTime(adjusted[i]);
+      if (Math.abs(adjusted[i] - seg.target) > 1) {
+        const diff = seg.target - adjusted[i];
+        detail = `<span class="adjusted">Was ${formatTime(seg.target)} (${diff > 0 ? '-' : '+'}${formatTime(Math.abs(diff))})</span>`;
+      } else {
+        detail = isFinal ? 'MUST HIT — ends the show' : 'Original';
+      }
+    }
+
+    html += `
+      <div class="${cardClass}">
+        <div class="seg-card-header">
+          <span class="seg-name">${seg.name}${isFinal ? ' (FINAL)' : ''}</span>
+          <span class="seg-time">${timeDisplay}</span>
+        </div>
+        <div class="seg-detail">${detail}</div>
+      </div>
+    `;
+  });
+
+  // Intro card
+  const totalDrift = state.segActuals.reduce((s, t, i) => s + (t - show.segments[i].target), 0);
+  const introNeeded = show.introTarget - totalDrift;
+
+  html += `
+    <div class="seg-card intro-card">
+      <div class="seg-card-header">
+        <span class="seg-name">Intro (filmed last)</span>
+        <span class="seg-time">${state.phase === 'complete' ? formatTime(Math.max(0, introNeeded)) : formatTime(show.introTarget)}</span>
+      </div>
+      <div class="seg-detail">${state.phase === 'complete'
+        ? (totalDrift > 0 ? '<span class="adjusted">Shortened to compensate</span>' : totalDrift < 0 ? '<span class="drift-under">Extended — extra time</span>' : 'Standard')
+        : 'Recorded after all segments'}</div>
+    </div>
+  `;
+
+  sidebar.innerHTML = html;
+}
+
+// ===== HELPERS =====
+function formatTime(totalSeconds) {
+  const abs = Math.abs(totalSeconds);
+  const m = Math.floor(abs / 60);
+  const s = Math.floor(abs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function sumPrevPausedForSeg() {
+  return 0; // Handled by adjusting segStartTime on resume
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); toggleStartPause(); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); nextSegment(); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); prevSegment(); }
+  if (e.code === 'KeyR' && e.shiftKey) { e.preventDefault(); resetShow(); }
+});
+
+// Fix pause/resume segStartTime
+const origToggle = toggleStartPause;
+// Override is already in the function — on resume we add paused duration to totalPausedMs
+// But segElapsed = (now - segStartTime) so we need to push segStartTime forward on resume.
+// Let's fix the resume logic:
+
+// Patch: adjust segStartTime on resume so elapsed calculation stays correct
+const _origToggle = toggleStartPause;
+toggleStartPause = function() {
+  if (state.phase === 'paused') {
+    const pausedDuration = Date.now() - state.pauseStartTime;
+    state.segStartTime += pausedDuration;
+    state.pauseStartTime = null;
+    state.phase = 'running';
+    stopBlink();
+    startTimer();
+    updateUI();
+    return;
+  }
+  if (state.phase === 'running') {
+    state.phase = 'paused';
+    state.pauseStartTime = Date.now();
+    stopTimer();
+    startBlink();
+    updateUI();
+    return;
+  }
+  if (state.phase === 'idle') {
+    startShow();
+  }
+};
+
+// ===== INTRO TIMER =====
+let introTimerInterval = null;
+let introStartTime = null;
+let introTargetSec = 10;
+
+function startIntroTimer() {
+  const show = SHOWS[currentShow];
+  const totalActualSegments = state.segActuals.reduce((s, t) => s + t, 0);
+  const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
+  introTargetSec = Math.max(1, show.introTarget - drift);
+
+  // Switch display
+  document.getElementById('introTime').style.display = 'none';
+  document.getElementById('introTimerLive').style.display = '';
+  document.getElementById('btnIntroStart').textContent = 'Stop Intro';
+  document.getElementById('btnIntroStart').setAttribute('onclick', 'stopIntroTimer()');
+  document.getElementById('btnIntroStart').className = 'ctrl-btn primary pause';
+
+  introStartTime = Date.now();
+  introTimerInterval = setInterval(tickIntro, 100);
+}
+
+function tickIntro() {
+  const elapsed = (Date.now() - introStartTime) / 1000;
+  const remaining = introTargetSec - elapsed;
+  const cd = document.getElementById('introCountdown');
+  const sub = document.getElementById('introCountdownSub');
+
+  if (remaining >= 0) {
+    cd.textContent = formatTime(remaining);
+    if (remaining <= 3) {
+      cd.style.color = 'var(--yellow)';
+      sub.textContent = 'Wrapping up...';
+      sub.style.color = 'var(--yellow)';
+    } else {
+      cd.style.color = 'var(--green)';
+      sub.textContent = `${formatTime(introTargetSec)} target`;
+      sub.style.color = 'var(--text-dim)';
+    }
+  } else {
+    cd.textContent = '-' + formatTime(Math.abs(remaining));
+    cd.style.color = 'var(--red)';
+    sub.textContent = `OVER by ${formatTime(Math.abs(remaining))}`;
+    sub.style.color = 'var(--red)';
+  }
+}
+
+function stopIntroTimer() {
+  if (introTimerInterval) { clearInterval(introTimerInterval); introTimerInterval = null; }
+  const elapsed = (Date.now() - introStartTime) / 1000;
+  const cd = document.getElementById('introCountdown');
+  const sub = document.getElementById('introCountdownSub');
+
+  cd.textContent = formatTime(elapsed);
+  cd.style.color = 'var(--text)';
+  sub.textContent = `Intro recorded: ${formatTime(elapsed)} (target was ${formatTime(introTargetSec)})`;
+  sub.style.color = 'var(--text-dim)';
+
+  document.getElementById('btnIntroStart').textContent = 'Redo Intro';
+  document.getElementById('btnIntroStart').setAttribute('onclick', 'startIntroTimer()');
+  document.getElementById('btnIntroStart').className = 'ctrl-btn primary';
+}
+
+// Init
+init();
+</script>
+</body>
+</html>
