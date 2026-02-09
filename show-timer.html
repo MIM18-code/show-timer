@@ -706,11 +706,8 @@ function getAdjustedTargets() {
 
   if (remainingCount > 0 && totalDrift !== 0) {
     if (Math.abs(totalDrift) <= 90) {
-      // Small drift: absorb into the next segment only
-      // If we're currently on a segment, that's the one that absorbs it
-      // If there's a segment after current, put it there instead
-      const absorber = (remainingCount > 1) ? nextSegIdx + 1 : nextSegIdx;
-      adjusted[absorber] = Math.max(30, targets[absorber] - totalDrift);
+      // Small drift: absorb into the very next segment (the one currently being timed)
+      adjusted[nextSegIdx] = Math.max(30, targets[nextSegIdx] - totalDrift);
     } else {
       // Large drift: spread across all remaining segments
       const perSeg = totalDrift / remainingCount;
