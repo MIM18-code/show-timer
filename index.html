@@ -919,6 +919,8 @@ function tick() {
 // ===== SEGMENT NAVIGATION =====
 function nextSegment() {
   if (state.phase === 'idle') return;
+  // Block if waiting between segments (nothing running to end)
+  if (state.phase === 'paused' && state.segElapsed < 0.5) return;
   const show = SHOWS[currentShow];
   state.segActuals.push(state.segElapsed);
 
@@ -1158,20 +1160,24 @@ function updateUI() {
   const isWaiting = state.phase === 'paused' && state.segElapsed < 0.5;
   const isFinalSeg = state.currentSeg >= show.segments.length - 1;
 
+  const adjustRow = document.getElementById('adjustRow');
+
   if (state.phase === 'running') {
     btnSP.textContent = 'Pause';
     btnSP.className = 'ctrl-btn primary pause';
     btnNext.textContent = isFinalSeg ? 'End Final' : 'End Segment';
     btnNext.className = 'ctrl-btn danger';
     btnNext.style.display = '';
+    adjustRow.style.display = 'flex';
   } else if (isWaiting) {
     // Between segments: waiting to start
     const nextName = show.segments[state.currentSeg].name;
     btnSP.textContent = `Start ${nextName}`;
     btnSP.className = 'ctrl-btn primary';
     btnSP.style.fontSize = '15px';
-    // Hide End Segment button when waiting — nothing to end
+    // Hide End Segment button and adjust when waiting — nothing to end or adjust
     btnNext.style.display = 'none';
+    adjustRow.style.display = 'none';
   } else if (state.phase === 'paused') {
     // Paused mid-segment
     btnSP.textContent = 'Resume';
@@ -1179,6 +1185,7 @@ function updateUI() {
     btnNext.textContent = isFinalSeg ? 'End Final' : 'End Segment';
     btnNext.className = 'ctrl-btn danger';
     btnNext.style.display = '';
+    adjustRow.style.display = 'flex';
   }
 
   document.getElementById('btnBack').disabled = state.currentSeg === 0;
