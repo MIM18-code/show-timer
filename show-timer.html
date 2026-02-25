@@ -947,6 +947,12 @@ function nextSegment() {
 
 function prevSegment() {
   if (state.currentSeg === 0) return;
+  // Confirm if going back would discard a completed segment's time
+  if (state.segActuals.length > 0) {
+    const prevName = SHOWS[currentShow].segments[state.currentSeg - 1].name;
+    const prevTime = formatTime(state.segActuals[state.segActuals.length - 1]);
+    if (!confirm(`Go back to ${prevName}? This will discard the recorded time (${prevTime}) and restart it.`)) return;
+  }
   stopTimer();
   stopBlink();
 
@@ -957,7 +963,6 @@ function prevSegment() {
   state.phase = 'paused';
   state.pauseStartTime = Date.now();
 
-  startBlink();
   saveState();
   updateUI();
   updateSidebar();
@@ -1063,9 +1068,9 @@ function closeEditModal() {
 
 function saveEditModal() {
   if (editingSegIndex < 0) return;
-  const m = parseInt(document.getElementById('editMin').value) || 0;
-  const s = parseInt(document.getElementById('editSec').value) || 0;
-  const newTime = Math.max(0, m * 60 + s);
+  const m = Math.max(0, parseInt(document.getElementById('editMin').value) || 0);
+  const s = Math.min(59, Math.max(0, parseInt(document.getElementById('editSec').value) || 0));
+  const newTime = m * 60 + s;
   state.segActuals[editingSegIndex] = newTime;
   closeEditModal();
   saveState();
@@ -1162,6 +1167,10 @@ function updateUI() {
 
   const adjustRow = document.getElementById('adjustRow');
 
+  // Reset inline styles that waiting state sets
+  btnSP.style.padding = '';
+  btnSP.style.fontSize = '';
+
   if (state.phase === 'running') {
     btnSP.textContent = 'Pause';
     btnSP.className = 'ctrl-btn primary pause';
@@ -1170,11 +1179,19 @@ function updateUI() {
     btnNext.style.display = '';
     adjustRow.style.display = 'flex';
   } else if (isWaiting) {
-    // Between segments: waiting to start
+    // Between segments: clearly different from mid-segment pause
+    stopBlink();
     const nextName = show.segments[state.currentSeg].name;
     btnSP.textContent = `Start ${nextName}`;
     btnSP.className = 'ctrl-btn primary';
-    btnSP.style.fontSize = '15px';
+    btnSP.style.padding = '18px 40px';
+    btnSP.style.fontSize = '17px';
+    // Static display — no blink, show target for next segment
+    display.textContent = formatTime(segTarget);
+    display.className = 'timer-display idle';
+    sub.textContent = `Ready \u2014 ${nextName}`;
+    sub.className = 'timer-sub';
+    bar.style.width = '0%';
     // Hide End Segment button and adjust when waiting — nothing to end or adjust
     btnNext.style.display = 'none';
     adjustRow.style.display = 'none';
