@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Show Timer">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230a0a0f' width='100' height='100' rx='20'/><text x='50' y='62' text-anchor='middle' fill='%2322c55e' font-size='50' font-family='system-ui' font-weight='700'>T</text></svg>">
 <title>Show Timer</title>
 <style>
   :root {
@@ -172,6 +174,7 @@
     display: flex;
     gap: 12px;
     margin-top: 8px;
+    flex-wrap: wrap;
   }
 
   .ctrl-btn {
@@ -185,6 +188,7 @@
     cursor: pointer;
     transition: all 0.15s;
     min-width: 90px;
+    min-height: 48px;
   }
 
   .ctrl-btn:active { transform: scale(0.96); }
@@ -209,6 +213,30 @@
     opacity: 0.3;
     pointer-events: none;
   }
+
+  /* === QUICK ADJUST === */
+  .adjust-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .adjust-btn {
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    transition: all 0.15s;
+    min-height: 44px;
+    min-width: 60px;
+  }
+
+  .adjust-btn:active { transform: scale(0.95); background: var(--surface); }
 
   /* === SIDEBAR: SEGMENTS === */
   .sidebar {
@@ -240,6 +268,10 @@
     background: var(--surface2);
     opacity: 0.6;
   }
+
+  .seg-card.completed.editable { cursor: pointer; min-height: 44px; }
+  .seg-card.completed.editable:hover,
+  .seg-card.completed.editable:active { opacity: 0.85; border-color: var(--blue); }
 
   .seg-card.active {
     background: var(--blue-bg);
@@ -282,6 +314,119 @@
   .seg-detail .drift-over { color: var(--red); font-weight: 600; }
   .seg-detail .drift-under { color: var(--green); font-weight: 600; }
   .seg-detail .adjusted { color: var(--yellow); }
+
+  /* === EDIT MODAL === */
+  .edit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .edit-overlay.visible { display: flex; }
+
+  .edit-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    min-width: 280px;
+    text-align: center;
+  }
+
+  .edit-modal h3 {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .edit-modal .edit-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  .edit-time-inputs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .edit-time-inputs input {
+    width: 70px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .edit-time-inputs input:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+
+  .edit-time-inputs .separator {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-dim);
+  }
+
+  .edit-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  /* === CONFIRM OVERLAY === */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .confirm-overlay.visible { display: flex; }
+
+  .confirm-modal {
+    background: var(--surface);
+    border: 1px solid var(--red);
+    border-radius: 16px;
+    padding: 24px;
+    min-width: 280px;
+    text-align: center;
+  }
+
+  .confirm-modal h3 {
+    font-size: 18px;
+    color: var(--red);
+    margin-bottom: 8px;
+  }
+
+  .confirm-modal p {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  .confirm-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
 
   /* === INTRO RESULT === */
   .intro-result {
@@ -344,6 +489,20 @@
     font-weight: 700;
   }
 
+  /* === WAKE LOCK INDICATOR === */
+  .wake-lock-indicator {
+    font-size: 11px;
+    color: var(--green);
+    opacity: 0.6;
+  }
+
+  .wake-lock-indicator.off {
+    color: var(--red);
+  }
+
+  /* Prevent Safari swipe-back gesture */
+  html, body { overscroll-behavior: none; }
+
   /* Responsive */
   @media (max-width: 768px) {
     .main {
@@ -372,8 +531,11 @@
   <!-- TOP BAR -->
   <div class="top-bar">
     <div class="show-selector" id="showSelector"></div>
-    <div class="total-clock" id="totalClock">
-      Elapsed <span id="elapsed">00:00</span> &nbsp;/&nbsp; Target <span id="target">00:00</span>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="wake-lock-indicator off" id="wakeLockStatus" title="Screen wake lock"></span>
+      <div class="total-clock" id="totalClock">
+        Elapsed <span id="elapsed">00:00</span> &nbsp;/&nbsp; Target <span id="target">00:00</span>
+      </div>
     </div>
   </div>
 
@@ -393,11 +555,17 @@
         <div class="progress-container">
           <div class="progress-bar on-time" id="progressBar" style="width:0%"></div>
         </div>
+        <div class="adjust-row" id="adjustRow" style="justify-content:center;">
+          <button class="adjust-btn" onclick="adjustSegTime(-30)" title="I was 30s late hitting Next">-30s</button>
+          <button class="adjust-btn" onclick="adjustSegTime(-10)" title="I was 10s late hitting Next">-10s</button>
+          <button class="adjust-btn" onclick="adjustSegTime(+10)" title="Add 10s">+10s</button>
+          <button class="adjust-btn" onclick="adjustSegTime(+30)" title="Add 30s">+30s</button>
+        </div>
         <div class="controls" style="justify-content:center;margin-top:16px;">
           <button class="ctrl-btn" id="btnBack" onclick="prevSegment()" disabled>&larr; Back</button>
           <button class="ctrl-btn primary" id="btnStartPause" onclick="toggleStartPause()">Start</button>
           <button class="ctrl-btn" id="btnNext" onclick="nextSegment()">Next &rarr;</button>
-          <button class="ctrl-btn danger" id="btnReset" onclick="resetShow()">Reset</button>
+          <button class="ctrl-btn danger" id="btnReset" onclick="confirmReset()">Reset</button>
         </div>
       </div>
     </div>
@@ -419,7 +587,7 @@
         <div style="font-family:'SF Mono','Menlo',monospace;font-size:20px;font-weight:600;" id="totalActual">00:00</div>
         <div style="font-size:12px;color:var(--text-dim);margin-top:6px;" id="driftSummary"></div>
       </div>
-      <button class="ctrl-btn danger" onclick="resetShow()" style="margin-top:16px;">Reset Show</button>
+      <button class="ctrl-btn danger" onclick="confirmReset()" style="margin-top:16px;">Reset Show</button>
     </div>
 
     <!-- SIDEBAR -->
@@ -429,12 +597,41 @@
   </div>
 </div>
 
+<!-- EDIT TIME MODAL -->
+<div class="edit-overlay" id="editOverlay">
+  <div class="edit-modal">
+    <h3 id="editTitle">Edit Section 1</h3>
+    <div class="edit-hint">Actual time for this segment</div>
+    <div class="edit-time-inputs">
+      <input type="number" id="editMin" min="0" max="99" placeholder="mm">
+      <span class="separator">:</span>
+      <input type="number" id="editSec" min="0" max="59" placeholder="ss">
+    </div>
+    <div class="edit-buttons">
+      <button class="ctrl-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="ctrl-btn primary" onclick="saveEditModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET CONFIRM MODAL -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-modal">
+    <h3>Reset Show?</h3>
+    <p>All timing data will be lost. This cannot be undone.</p>
+    <div class="confirm-buttons">
+      <button class="ctrl-btn" onclick="closeConfirm()">Cancel</button>
+      <button class="ctrl-btn danger" onclick="doReset()" style="background:var(--red-bg);">Yes, Reset</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== SHOW DATA =====
 const SHOWS = {
   touchdown: {
     name: "Touchdown Baltimore",
-    introTarget: 10, // seconds
+    introTarget: 10,
     segments: [
       { name: "Section 1", target: 8 * 60 },
       { name: "Section 2", target: 8 * 60 },
@@ -473,16 +670,113 @@ let currentShow = null;
 let state = {
   phase: 'idle', // idle, running, paused, complete
   currentSeg: 0,
-  segElapsed: 0, // seconds elapsed in current segment (fractional)
-  segActuals: [], // actual seconds used per completed segment
+  segElapsed: 0,
+  segActuals: [],
   showStartTime: null,
   segStartTime: null,
-  totalPausedMs: 0,
   pauseStartTime: null,
 };
 
 let timerInterval = null;
 let blinkInterval = null;
+let wakeLock = null;
+let editingSegIndex = -1;
+
+// ===== WAKE LOCK =====
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => {
+      updateWakeLockUI(false);
+    });
+    updateWakeLockUI(true);
+  } catch (e) {
+    updateWakeLockUI(false);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+  }
+  updateWakeLockUI(false);
+}
+
+function updateWakeLockUI(active) {
+  const el = document.getElementById('wakeLockStatus');
+  if (active) {
+    el.textContent = 'SCREEN ON';
+    el.className = 'wake-lock-indicator';
+  } else {
+    el.textContent = '';
+    el.className = 'wake-lock-indicator off';
+  }
+}
+
+// Re-acquire wake lock when tab becomes visible again
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.phase === 'running') {
+    requestWakeLock();
+  }
+});
+
+// ===== LOCAL STORAGE PERSISTENCE =====
+const STORAGE_KEY = 'showTimerState';
+
+function saveState() {
+  try {
+    const data = {
+      currentShow,
+      state: {
+        phase: state.phase,
+        currentSeg: state.currentSeg,
+        segElapsed: state.segElapsed,
+        segActuals: state.segActuals,
+        // Store timestamps as offsets from now so we can restore relative timing
+        segStartTimeOffset: state.segStartTime ? Date.now() - state.segStartTime : null,
+        pauseStartTimeOffset: state.pauseStartTime ? Date.now() - state.pauseStartTime : null,
+      },
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) { /* storage full or unavailable */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+
+    // Don't restore if saved more than 4 hours ago
+    if (Date.now() - data.savedAt > 4 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return false;
+    }
+
+    if (!SHOWS[data.currentShow]) return false;
+
+    currentShow = data.currentShow;
+    const s = data.state;
+
+    state.phase = s.phase;
+    state.currentSeg = s.currentSeg;
+    state.segElapsed = s.segElapsed;
+    state.segActuals = s.segActuals;
+    state.segStartTime = s.segStartTimeOffset != null ? Date.now() - s.segStartTimeOffset : null;
+    state.pauseStartTime = s.pauseStartTimeOffset != null ? Date.now() - s.pauseStartTimeOffset : null;
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearSavedState() {
+  localStorage.removeItem(STORAGE_KEY);
+}
 
 // ===== INIT =====
 function init() {
@@ -499,7 +793,8 @@ function init() {
 }
 
 function selectShow(key) {
-  if (state.phase === 'running') return; // don't switch while running
+  // Don't switch while running OR paused
+  if (state.phase === 'running' || state.phase === 'paused') return;
   currentShow = key;
   resetShow();
   init();
@@ -507,6 +802,8 @@ function selectShow(key) {
 
 function resetShow() {
   stopTimer();
+  stopBlink();
+  releaseWakeLock();
   state = {
     phase: 'idle',
     currentSeg: 0,
@@ -514,17 +811,32 @@ function resetShow() {
     segActuals: [],
     showStartTime: null,
     segStartTime: null,
-    totalPausedMs: 0,
     pauseStartTime: null,
   };
+  clearSavedState();
   document.getElementById('showComplete').classList.remove('visible');
   document.getElementById('startScreen').style.display = 'flex';
   document.getElementById('activeTimer').style.display = 'none';
   document.getElementById('showTitle').textContent = SHOWS[currentShow].name;
   updateSidebar();
   updateTotalClock();
-  // Re-enable show buttons
   document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = '');
+}
+
+// ===== RESET CONFIRMATION =====
+function confirmReset() {
+  // If idle, no need to confirm
+  if (state.phase === 'idle') { resetShow(); return; }
+  document.getElementById('confirmOverlay').classList.add('visible');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('visible');
+}
+
+function doReset() {
+  closeConfirm();
+  resetShow();
 }
 
 // ===== TIMER ENGINE =====
@@ -532,11 +844,10 @@ function startShow() {
   state.phase = 'running';
   state.showStartTime = Date.now();
   state.segStartTime = Date.now();
-  state.totalPausedMs = 0;
   document.getElementById('startScreen').style.display = 'none';
   document.getElementById('activeTimer').style.display = '';
-  // Disable show switching
   document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = 'none');
+  requestWakeLock();
   startTimer();
   updateUI();
 }
@@ -552,13 +863,16 @@ function toggleStartPause() {
     state.pauseStartTime = Date.now();
     stopTimer();
     startBlink();
+    saveState();
     updateUI();
   } else if (state.phase === 'paused') {
-    // Resume
-    state.totalPausedMs += Date.now() - state.pauseStartTime;
+    // Resume: adjust segStartTime forward by pause duration
+    const pausedDuration = Date.now() - state.pauseStartTime;
+    state.segStartTime += pausedDuration;
     state.pauseStartTime = null;
     state.phase = 'running';
     stopBlink();
+    requestWakeLock();
     startTimer();
     updateUI();
   }
@@ -592,27 +906,23 @@ function stopBlink() {
 
 function tick() {
   if (state.phase !== 'running') return;
-  const now = Date.now();
-  state.segElapsed = (now - state.segStartTime - state.totalPausedMs + sumPrevPausedForSeg()) / 1000;
-  // Note: totalPausedMs is cumulative for entire show; segStartTime is when seg started
-  // We need per-segment elapsed = (now - segStartTime - pausedDuringSeg)
-  // Simplification: store segStartTime after accounting for pauses
-  // Actually let's recalc: segElapsed = time since seg start minus any pauses during this seg
-  state.segElapsed = (now - state.segStartTime) / 1000;
+  state.segElapsed = (Date.now() - state.segStartTime) / 1000;
   updateUI();
+
+  // Periodic save (every 5 seconds)
+  if (!tick._lastSave || Date.now() - tick._lastSave > 5000) {
+    tick._lastSave = Date.now();
+    saveState();
+  }
 }
 
-// Fix: we reset segStartTime on segment change and on resume, so segElapsed is simply now - segStartTime
-// On pause resume, we adjust segStartTime forward by pause duration
-
+// ===== SEGMENT NAVIGATION =====
 function nextSegment() {
   if (state.phase === 'idle') return;
   const show = SHOWS[currentShow];
-  const actualSec = state.segElapsed;
-  state.segActuals.push(actualSec);
+  state.segActuals.push(state.segElapsed);
 
   if (state.currentSeg >= show.segments.length - 1) {
-    // Show complete
     completeShow();
     return;
   }
@@ -622,17 +932,16 @@ function nextSegment() {
   state.segElapsed = 0;
 
   if (state.phase === 'paused') {
-    // Stay paused but reset seg timer
     state.pauseStartTime = Date.now();
   }
 
+  saveState();
   updateUI();
   updateSidebar();
 }
 
 function prevSegment() {
   if (state.currentSeg === 0) return;
-  // Undo: remove last actual, go back
   state.segActuals.pop();
   state.currentSeg--;
   state.segStartTime = Date.now();
@@ -640,17 +949,73 @@ function prevSegment() {
   if (state.phase === 'paused') {
     state.pauseStartTime = Date.now();
   }
+  saveState();
   updateUI();
   updateSidebar();
 }
 
+// ===== QUICK ADJUST =====
+function adjustSegTime(deltaSec) {
+  // Shift segStartTime to effectively add/remove elapsed time
+  // Negative delta = "I was late, subtract time" = push segStartTime forward
+  // Positive delta = "add more time" = push segStartTime backward
+  state.segStartTime -= deltaSec * 1000;
+  state.segElapsed = Math.max(0, state.segElapsed + deltaSec);
+  // If adjusting makes elapsed negative, clamp segStartTime
+  if (state.segElapsed <= 0) {
+    state.segElapsed = 0;
+    state.segStartTime = Date.now();
+    if (state.phase === 'paused') {
+      state.pauseStartTime = Date.now();
+    }
+  }
+  saveState();
+  updateUI();
+  updateSidebar();
+}
+
+// ===== SHOW COMPLETE =====
 function completeShow() {
   state.phase = 'complete';
   stopTimer();
   stopBlink();
+  releaseWakeLock();
 
   const show = SHOWS[currentShow];
-  const totalTarget = show.segments.reduce((s, seg) => s + seg.target, 0) + show.introTarget;
+  const totalActualSegments = state.segActuals.reduce((s, t) => s + t, 0);
+  const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
+  const introNeeded = show.introTarget - drift;
+
+  document.getElementById('introTime').textContent = formatTime(Math.max(0, introNeeded));
+  document.getElementById('introTime').style.color =
+    introNeeded < 3 ? 'var(--red)' : introNeeded < 8 ? 'var(--yellow)' : 'var(--green)';
+
+  // Reset intro timer display state
+  document.getElementById('introTime').style.display = '';
+  document.getElementById('introTimerLive').style.display = 'none';
+  document.getElementById('btnIntroStart').textContent = 'Time the Intro';
+  document.getElementById('btnIntroStart').setAttribute('onclick', 'startIntroTimer()');
+  document.getElementById('btnIntroStart').className = 'ctrl-btn primary';
+
+  document.getElementById('totalActual').textContent = formatTime(totalActualSegments);
+
+  const driftText = drift > 0
+    ? `Segments ran ${formatTime(drift)} over. Intro needs to be shorter.`
+    : drift < 0
+    ? `Segments ran ${formatTime(Math.abs(drift))} under. Intro can be longer.`
+    : `Segments hit target exactly.`;
+  document.getElementById('driftSummary').textContent = driftText;
+
+  document.getElementById('showComplete').classList.add('visible');
+  document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = '');
+  saveState();
+  updateSidebar();
+}
+
+// Recalculate the complete screen (called after editing a segment time)
+function recalcComplete() {
+  if (state.phase !== 'complete') return;
+  const show = SHOWS[currentShow];
   const totalActualSegments = state.segActuals.reduce((s, t) => s + t, 0);
   const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
   const introNeeded = show.introTarget - drift;
@@ -667,10 +1032,37 @@ function completeShow() {
     ? `Segments ran ${formatTime(Math.abs(drift))} under. Intro can be longer.`
     : `Segments hit target exactly.`;
   document.getElementById('driftSummary').textContent = driftText;
+}
 
-  document.getElementById('showComplete').classList.add('visible');
-  document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = '');
+// ===== EDIT SEGMENT TIME =====
+function openEditModal(segIndex) {
+  editingSegIndex = segIndex;
+  const show = SHOWS[currentShow];
+  const actual = state.segActuals[segIndex];
+  document.getElementById('editTitle').textContent = `Edit ${show.segments[segIndex].name}`;
+  document.getElementById('editMin').value = Math.floor(actual / 60);
+  document.getElementById('editSec').value = Math.floor(actual % 60);
+  document.getElementById('editOverlay').classList.add('visible');
+  document.getElementById('editMin').focus();
+  document.getElementById('editMin').select();
+}
+
+function closeEditModal() {
+  document.getElementById('editOverlay').classList.remove('visible');
+  editingSegIndex = -1;
+}
+
+function saveEditModal() {
+  if (editingSegIndex < 0) return;
+  const m = parseInt(document.getElementById('editMin').value) || 0;
+  const s = parseInt(document.getElementById('editSec').value) || 0;
+  const newTime = Math.max(0, m * 60 + s);
+  state.segActuals[editingSegIndex] = newTime;
+  closeEditModal();
+  saveState();
   updateSidebar();
+  updateTotalClock();
+  recalcComplete();
 }
 
 // ===== DRIFT / ADJUSTMENT CALCULATION =====
@@ -679,15 +1071,11 @@ function getAdjustedTargets() {
   const targets = show.segments.map(s => s.target);
   const n = targets.length;
 
-  // Calculate total drift from completed segments
   let totalDrift = 0;
   for (let i = 0; i < state.segActuals.length; i++) {
     totalDrift += state.segActuals[i] - targets[i];
   }
 
-  // Only include live drift from the current segment if the host has gone OVER
-  // (under-time is meaningless mid-segment — they haven't finished yet)
-  // Once a segment is completed, both over and under drift get distributed
   if (state.phase === 'running' || state.phase === 'paused') {
     const curTarget = targets[state.currentSeg];
     const curDrift = state.segElapsed - curTarget;
@@ -696,20 +1084,14 @@ function getAdjustedTargets() {
     }
   }
 
-  // Adjusted targets:
-  // Under 90s drift → dump it all on the NEXT segment only
-  // 90s+ drift → spread evenly across ALL remaining segments
   const adjusted = [...targets];
-
-  const nextSegIdx = state.segActuals.length; // current segment index (first non-completed)
+  const nextSegIdx = state.segActuals.length;
   const remainingCount = n - nextSegIdx;
 
   if (remainingCount > 0 && totalDrift !== 0) {
     if (Math.abs(totalDrift) <= 90) {
-      // Small drift: absorb into the very next segment (the one currently being timed)
       adjusted[nextSegIdx] = Math.max(30, targets[nextSegIdx] - totalDrift);
     } else {
-      // Large drift: spread across all remaining segments
       const perSeg = totalDrift / remainingCount;
       for (let i = nextSegIdx; i < n; i++) {
         adjusted[i] = Math.max(30, targets[i] - perSeg);
@@ -729,11 +1111,9 @@ function updateUI() {
     ? show.segments[state.currentSeg].target
     : adjusted[state.currentSeg];
 
-  // Segment label
   document.getElementById('segLabel').innerHTML =
     `${seg.name.replace(/(\d+)/, '<span class="num">$1</span>')}`;
 
-  // Timer display: countdown (use cached refs to avoid DOM flicker)
   const remaining = segTarget - state.segElapsed;
   const display = document.getElementById('timerDisplay');
   const sub = document.getElementById('timerSub');
@@ -741,7 +1121,6 @@ function updateUI() {
   const newTime = remaining >= 0 ? formatTime(remaining) : '-' + formatTime(Math.abs(remaining));
   const newState = remaining < 0 ? 'over' : remaining <= 30 ? 'warning' : 'on-time';
 
-  // Only update DOM when values actually change
   if (display.textContent !== newTime) display.textContent = newTime;
 
   const newClass = 'timer-display ' + newState;
@@ -761,14 +1140,12 @@ function updateUI() {
   if (sub.textContent !== newSub) sub.textContent = newSub;
   if (sub.className !== newSubClass) sub.className = newSubClass;
 
-  // Progress
   const pct = Math.min(100, (state.segElapsed / segTarget) * 100);
   const bar = document.getElementById('progressBar');
   bar.style.width = pct + '%';
   const barClass = 'progress-bar ' + newState;
   if (bar.className !== barClass) bar.className = barClass;
 
-  // Buttons
   const btnSP = document.getElementById('btnStartPause');
   if (state.phase === 'running') {
     btnSP.textContent = 'Pause';
@@ -782,9 +1159,8 @@ function updateUI() {
   document.getElementById('btnNext').textContent =
     state.currentSeg >= show.segments.length - 1 ? 'Finish' : 'Next \u2192';
 
-  // Total clock
   updateTotalClock();
-  // Sidebar: throttle to once per second to avoid flicker from full innerHTML rebuild
+
   const now = Date.now();
   if (!updateUI._lastSidebar || now - updateUI._lastSidebar > 1000) {
     updateUI._lastSidebar = now;
@@ -825,9 +1201,12 @@ function updateSidebar() {
     const isFinal = i === show.segments.length - 1;
 
     let cardClass = 'seg-card';
-    if (isCompleted) cardClass += ' completed';
+    if (isCompleted) cardClass += ' completed editable';
     else if (isActive) cardClass += ' active';
     else cardClass += ' upcoming';
+
+    // Make completed segments clickable for editing
+    const onclick = isCompleted ? ` onclick="openEditModal(${i})"` : '';
 
     let timeDisplay = '';
     let detail = '';
@@ -837,11 +1216,11 @@ function updateSidebar() {
       const drift = actual - seg.target;
       timeDisplay = formatTime(actual);
       if (drift > 1) {
-        detail = `<span class="drift-over">+${formatTime(drift)} over</span>`;
+        detail = `<span class="drift-over">+${formatTime(drift)} over</span> &middot; tap to edit`;
       } else if (drift < -1) {
-        detail = `<span class="drift-under">${formatTime(Math.abs(drift))} under</span>`;
+        detail = `<span class="drift-under">${formatTime(Math.abs(drift))} under</span> &middot; tap to edit`;
       } else {
-        detail = 'On time';
+        detail = 'On time &middot; tap to edit';
       }
     } else if (isActive) {
       timeDisplay = formatTime(Math.max(0, adjusted[i] - state.segElapsed));
@@ -854,18 +1233,17 @@ function updateSidebar() {
         detail = `Target: ${formatTime(seg.target)}`;
       }
     } else {
-      // Upcoming
       timeDisplay = formatTime(adjusted[i]);
       if (Math.abs(adjusted[i] - seg.target) > 1) {
         const diff = seg.target - adjusted[i];
         detail = `<span class="adjusted">Was ${formatTime(seg.target)} (${diff > 0 ? '-' : '+'}${formatTime(Math.abs(diff))})</span>`;
       } else {
-        detail = isFinal ? 'MUST HIT — ends the show' : 'Original';
+        detail = isFinal ? 'MUST HIT \u2014 ends the show' : 'Original';
       }
     }
 
     html += `
-      <div class="${cardClass}">
+      <div class="${cardClass}"${onclick}>
         <div class="seg-card-header">
           <span class="seg-name">${seg.name}${isFinal ? ' (FINAL)' : ''}</span>
           <span class="seg-time">${timeDisplay}</span>
@@ -886,7 +1264,7 @@ function updateSidebar() {
         <span class="seg-time">${state.phase === 'complete' ? formatTime(Math.max(0, introNeeded)) : formatTime(show.introTarget)}</span>
       </div>
       <div class="seg-detail">${state.phase === 'complete'
-        ? (totalDrift > 0 ? '<span class="adjusted">Shortened to compensate</span>' : totalDrift < 0 ? '<span class="drift-under">Extended — extra time</span>' : 'Standard')
+        ? (totalDrift > 0 ? '<span class="adjusted">Shortened to compensate</span>' : totalDrift < 0 ? '<span class="drift-under">Extended \u2014 extra time</span>' : 'Standard')
         : 'Recorded after all segments'}</div>
     </div>
   `;
@@ -902,49 +1280,23 @@ function formatTime(totalSeconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function sumPrevPausedForSeg() {
-  return 0; // Handled by adjusting segStartTime on resume
-}
-
-// Keyboard shortcuts
+// ===== KEYBOARD SHORTCUTS =====
 document.addEventListener('keydown', (e) => {
+  // Don't capture keys when editing a time
+  if (document.getElementById('editOverlay').classList.contains('visible')) {
+    if (e.code === 'Escape') closeEditModal();
+    if (e.code === 'Enter') saveEditModal();
+    return;
+  }
+  if (document.getElementById('confirmOverlay').classList.contains('visible')) {
+    if (e.code === 'Escape') closeConfirm();
+    return;
+  }
   if (e.code === 'Space') { e.preventDefault(); toggleStartPause(); }
   if (e.code === 'ArrowRight') { e.preventDefault(); nextSegment(); }
   if (e.code === 'ArrowLeft') { e.preventDefault(); prevSegment(); }
-  if (e.code === 'KeyR' && e.shiftKey) { e.preventDefault(); resetShow(); }
+  if (e.code === 'KeyR' && e.shiftKey) { e.preventDefault(); confirmReset(); }
 });
-
-// Fix pause/resume segStartTime
-const origToggle = toggleStartPause;
-// Override is already in the function — on resume we add paused duration to totalPausedMs
-// But segElapsed = (now - segStartTime) so we need to push segStartTime forward on resume.
-// Let's fix the resume logic:
-
-// Patch: adjust segStartTime on resume so elapsed calculation stays correct
-const _origToggle = toggleStartPause;
-toggleStartPause = function() {
-  if (state.phase === 'paused') {
-    const pausedDuration = Date.now() - state.pauseStartTime;
-    state.segStartTime += pausedDuration;
-    state.pauseStartTime = null;
-    state.phase = 'running';
-    stopBlink();
-    startTimer();
-    updateUI();
-    return;
-  }
-  if (state.phase === 'running') {
-    state.phase = 'paused';
-    state.pauseStartTime = Date.now();
-    stopTimer();
-    startBlink();
-    updateUI();
-    return;
-  }
-  if (state.phase === 'idle') {
-    startShow();
-  }
-};
 
 // ===== INTRO TIMER =====
 let introTimerInterval = null;
@@ -957,7 +1309,6 @@ function startIntroTimer() {
   const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
   introTargetSec = Math.max(1, show.introTarget - drift);
 
-  // Switch display
   document.getElementById('introTime').style.display = 'none';
   document.getElementById('introTimerLive').style.display = '';
   document.getElementById('btnIntroStart').textContent = 'Stop Intro';
@@ -1009,8 +1360,38 @@ function stopIntroTimer() {
   document.getElementById('btnIntroStart').className = 'ctrl-btn primary';
 }
 
-// Init
-init();
+// ===== PREVENT ACCIDENTAL CLOSE =====
+window.addEventListener('beforeunload', (e) => {
+  if (state.phase !== 'idle') {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// ===== STARTUP =====
+(function startup() {
+  const restored = loadState();
+  if (restored && state.phase !== 'idle') {
+    // Restore UI to match saved state
+    init();
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('activeTimer').style.display = '';
+    document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = 'none');
+
+    if (state.phase === 'running') {
+      requestWakeLock();
+      startTimer();
+    } else if (state.phase === 'paused') {
+      startBlink();
+    } else if (state.phase === 'complete') {
+      completeShow();
+    }
+    updateUI();
+    updateSidebar();
+  } else {
+    init();
+  }
+})();
 </script>
 </body>
 </html>
