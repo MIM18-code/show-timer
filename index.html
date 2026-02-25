@@ -927,14 +927,17 @@ function nextSegment() {
     return;
   }
 
+  // Always pause between segments — operator starts next one when talent is ready
+  stopTimer();
+  stopBlink();
+
   state.currentSeg++;
   state.segStartTime = Date.now();
   state.segElapsed = 0;
+  state.phase = 'paused';
+  state.pauseStartTime = Date.now();
 
-  if (state.phase === 'paused') {
-    state.pauseStartTime = Date.now();
-  }
-
+  startBlink();
   saveState();
   updateUI();
   updateSidebar();
@@ -942,13 +945,17 @@ function nextSegment() {
 
 function prevSegment() {
   if (state.currentSeg === 0) return;
+  stopTimer();
+  stopBlink();
+
   state.segActuals.pop();
   state.currentSeg--;
   state.segStartTime = Date.now();
   state.segElapsed = 0;
-  if (state.phase === 'paused') {
-    state.pauseStartTime = Date.now();
-  }
+  state.phase = 'paused';
+  state.pauseStartTime = Date.now();
+
+  startBlink();
   saveState();
   updateUI();
   updateSidebar();
@@ -1147,17 +1154,34 @@ function updateUI() {
   if (bar.className !== barClass) bar.className = barClass;
 
   const btnSP = document.getElementById('btnStartPause');
+  const btnNext = document.getElementById('btnNext');
+  const isWaiting = state.phase === 'paused' && state.segElapsed < 0.5;
+  const isFinalSeg = state.currentSeg >= show.segments.length - 1;
+
   if (state.phase === 'running') {
     btnSP.textContent = 'Pause';
     btnSP.className = 'ctrl-btn primary pause';
+    btnNext.textContent = isFinalSeg ? 'End Final' : 'End Segment';
+    btnNext.className = 'ctrl-btn danger';
+    btnNext.style.display = '';
+  } else if (isWaiting) {
+    // Between segments: waiting to start
+    const nextName = show.segments[state.currentSeg].name;
+    btnSP.textContent = `Start ${nextName}`;
+    btnSP.className = 'ctrl-btn primary';
+    btnSP.style.fontSize = '15px';
+    // Hide End Segment button when waiting — nothing to end
+    btnNext.style.display = 'none';
   } else if (state.phase === 'paused') {
+    // Paused mid-segment
     btnSP.textContent = 'Resume';
     btnSP.className = 'ctrl-btn primary';
+    btnNext.textContent = isFinalSeg ? 'End Final' : 'End Segment';
+    btnNext.className = 'ctrl-btn danger';
+    btnNext.style.display = '';
   }
 
   document.getElementById('btnBack').disabled = state.currentSeg === 0;
-  document.getElementById('btnNext').textContent =
-    state.currentSeg >= show.segments.length - 1 ? 'Finish' : 'Next \u2192';
 
   updateTotalClock();
 
