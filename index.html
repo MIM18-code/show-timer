@@ -256,6 +256,25 @@
     padding: 0 4px;
   }
 
+  .drift-banner {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .drift-banner.drift-over {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid rgba(239,68,68,0.25);
+  }
+  .drift-banner.drift-under {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid rgba(34,197,94,0.25);
+  }
+
   .seg-card {
     padding: 10px 12px;
     border-radius: 8px;
@@ -1096,31 +1115,50 @@ function getAdjustedTargets() {
   const show = SHOWS[currentShow];
   const targets = show.segments.map(s => s.target);
   const n = targets.length;
+  const adjusted = [...targets];
 
-  let totalDrift = 0;
+  // Step 1: Drift from COMPLETED segments only
+  let completedDrift = 0;
   for (let i = 0; i < state.segActuals.length; i++) {
-    totalDrift += state.segActuals[i] - targets[i];
+    completedDrift += state.segActuals[i] - targets[i];
   }
 
-  if (state.phase === 'running' || state.phase === 'paused') {
-    const curTarget = targets[state.currentSeg];
-    const curDrift = state.segElapsed - curTarget;
-    if (state.currentSeg < n && curDrift > 0) {
-      totalDrift += curDrift;
+  const curIdx = state.segActuals.length; // current or next-to-run segment
+  if (curIdx >= n) return adjusted; // all segments done
+
+  // Step 2: Adjust current + future based on completed drift
+  const remainingFromCurrent = n - curIdx;
+  if (completedDrift !== 0) {
+    if (Math.abs(completedDrift) <= 90) {
+      // Small drift: absorb into current segment's target
+      adjusted[curIdx] = Math.max(30, targets[curIdx] - completedDrift);
+    } else {
+      // Large drift: spread evenly across current + future
+      const perSeg = completedDrift / remainingFromCurrent;
+      for (let i = curIdx; i < n; i++) {
+        adjusted[i] = Math.max(30, targets[i] - perSeg);
+      }
     }
   }
 
-  const adjusted = [...targets];
-  const nextSegIdx = state.segActuals.length;
-  const remainingCount = n - nextSegIdx;
+  // Step 3: If current segment is RUNNING and over its adjusted target,
+  // redistribute that overflow to FUTURE segments only.
+  // (Current segment's own display uses the Step 2 target — no double-count.)
+  const futureStart = curIdx + 1;
+  const futureCount = n - futureStart;
 
-  if (remainingCount > 0 && totalDrift !== 0) {
-    if (Math.abs(totalDrift) <= 90) {
-      adjusted[nextSegIdx] = Math.max(30, targets[nextSegIdx] - totalDrift);
-    } else {
-      const perSeg = totalDrift / remainingCount;
-      for (let i = nextSegIdx; i < n; i++) {
-        adjusted[i] = Math.max(30, targets[i] - perSeg);
+  if (futureCount > 0 && (state.phase === 'running' || state.phase === 'paused')) {
+    const liveOver = state.segElapsed - adjusted[curIdx];
+    if (liveOver > 0) {
+      if (liveOver <= 90) {
+        // Small overflow: dump on next future segment
+        adjusted[futureStart] = Math.max(30, adjusted[futureStart] - liveOver);
+      } else {
+        // Large overflow: spread across all future segments
+        const perSeg = liveOver / futureCount;
+        for (let i = futureStart; i < n; i++) {
+          adjusted[i] = Math.max(30, adjusted[i] - perSeg);
+        }
       }
     }
   }
@@ -1254,6 +1292,19 @@ function updateSidebar() {
 
   let html = '<div class="sidebar-title">Segments</div>';
 
+  // Drift summary banner
+  if (state.phase !== 'idle' && state.phase !== 'complete') {
+    const totalOriginal = show.segments.reduce((s, seg) => s + seg.target, 0);
+    const timeUsed = state.segActuals.reduce((s, t) => s + t, 0) + state.segElapsed;
+    const budgetUsed = show.segments.slice(0, state.segActuals.length + 1).reduce((s, seg) => s + seg.target, 0);
+    const drift = Math.round(timeUsed - budgetUsed);
+    if (Math.abs(drift) > 2) {
+      const cls = drift > 0 ? 'drift-over' : 'drift-under';
+      const label = drift > 0 ? `${formatTime(drift)} over pace` : `${formatTime(Math.abs(drift))} ahead`;
+      html += `<div class="drift-banner ${cls}">${label} \u2014 adjusting upcoming targets</div>`;
+    }
+  }
+
   show.segments.forEach((seg, i) => {
     const isCompleted = i < state.segActuals.length;
     const isActive = i === state.currentSeg && state.phase !== 'idle' && state.phase !== 'complete';
@@ -1285,10 +1336,14 @@ function updateSidebar() {
     } else if (isActive) {
       timeDisplay = formatTime(Math.max(0, adjusted[i] - state.segElapsed));
       const remaining = adjusted[i] - state.segElapsed;
+      const isAdj = Math.abs(adjusted[i] - seg.target) > 1;
       if (remaining < 0) {
         detail = `<span class="drift-over">OVER ${formatTime(Math.abs(remaining))}</span>`;
       } else if (remaining < 30) {
         detail = '<span class="adjusted">Wrapping up</span>';
+      } else if (isAdj) {
+        const diff = seg.target - adjusted[i];
+        detail = `Target: ${formatTime(adjusted[i])} <span class="adjusted">(${diff > 0 ? 'saving' : 'gaining'} ${formatTime(Math.abs(diff))})</span>`;
       } else {
         detail = `Target: ${formatTime(seg.target)}`;
       }
@@ -1296,7 +1351,9 @@ function updateSidebar() {
       timeDisplay = formatTime(adjusted[i]);
       if (Math.abs(adjusted[i] - seg.target) > 1) {
         const diff = seg.target - adjusted[i];
-        detail = `<span class="adjusted">Was ${formatTime(seg.target)} (${diff > 0 ? '-' : '+'}${formatTime(Math.abs(diff))})</span>`;
+        detail = diff > 0
+          ? `<span class="adjusted">${formatTime(adjusted[i])} \u2190 saving ${formatTime(diff)}</span>`
+          : `<span class="drift-under">${formatTime(adjusted[i])} \u2190 gaining ${formatTime(Math.abs(diff))}</span>`;
       } else {
         detail = isFinal ? 'MUST HIT \u2014 ends the show' : 'Original';
       }
