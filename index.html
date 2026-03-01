@@ -1273,14 +1273,19 @@ function updateTotalClock() {
   const totalTarget = show.segments.reduce((s, seg) => s + seg.target, 0);
   document.getElementById('target').textContent = formatTime(totalTarget);
 
+  const elapsedEl = document.getElementById('elapsed');
+
   if (state.phase === 'idle') {
-    document.getElementById('elapsed').textContent = '00:00';
+    elapsedEl.textContent = '00:00';
+    elapsedEl.style.color = '';
     return;
   }
 
   const completedTime = state.segActuals.reduce((s, t) => s + t, 0);
   const currentTime = (state.phase === 'running' || state.phase === 'paused') ? state.segElapsed : 0;
-  document.getElementById('elapsed').textContent = formatTime(completedTime + currentTime);
+  const totalTime = completedTime + currentTime;
+  elapsedEl.textContent = formatTime(totalTime);
+  elapsedEl.style.color = totalTime > totalTarget ? 'var(--red)' : '';
 }
 
 function updateSidebar() {
