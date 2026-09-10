@@ -649,6 +649,7 @@
 // ===== SHOW DATA =====
 const SHOWS = {
   touchdown: {
+    // 2/8/26 correction (minus 2x :15 Comfort Plus)
     name: "Touchdown Baltimore",
     introTarget: 10,
     segments: [
@@ -661,15 +662,16 @@ const SHOWS = {
     ]
   },
   walltowall: {
+    // 5/29/26 correction (adding 30 seconds of Comfort Plus)
     name: "Wall to Wall Baseball",
     introTarget: 10,
     segments: [
-      { name: "Section 1", target: 7 * 60 + 30 },
+      { name: "Section 1", target: 7 * 60 + 15 },
       { name: "Section 2", target: 7 * 60 + 15 },
       { name: "Section 3", target: 7 * 60 + 15 },
       { name: "Section 4", target: 7 * 60 + 15 },
       { name: "Section 5", target: 7 * 60 + 15 },
-      { name: "Section 6", target: 7 * 60 + 15 },
+      { name: "Section 6", target: 7 * 60 },
     ]
   },
   touchdown5: {
@@ -685,13 +687,14 @@ const SHOWS = {
     ]
   },
   ballgame: {
+    // June 2, 2026 correction
     name: "Take Me Out to the Ballgame",
     introTarget: 10,
     segments: [
-      { name: "Section 1", target: 5 * 60 + 30 },
-      { name: "Section 2", target: 6 * 60 },
-      { name: "Section 3", target: 5 * 60 + 30 },
-      { name: "Section 4", target: 2 * 60 + 7 },
+      { name: "Section 1", target: 6 * 60 },
+      { name: "Section 2", target: 5 * 60 + 30 },
+      { name: "Section 3", target: 6 * 60 },
+      { name: "Section 4", target: 1 * 60 + 7 },
     ]
   }
 };
@@ -880,6 +883,7 @@ function startShow() {
   document.querySelectorAll('.show-btn').forEach(b => b.style.pointerEvents = 'none');
   requestWakeLock();
   startTimer();
+  saveState();
   updateUI();
 }
 
@@ -905,6 +909,7 @@ function toggleStartPause() {
     stopBlink();
     requestWakeLock();
     startTimer();
+    saveState();
     updateUI();
   }
 }
@@ -949,7 +954,7 @@ function tick() {
 
 // ===== SEGMENT NAVIGATION =====
 function nextSegment() {
-  if (state.phase === 'idle') return;
+  if (state.phase === 'idle' || state.phase === 'complete') return;
   // Block if waiting between segments (nothing running to end)
   if (state.phase === 'paused' && state.segElapsed < 0.5) return;
   const show = SHOWS[currentShow];
@@ -977,6 +982,7 @@ function nextSegment() {
 }
 
 function prevSegment() {
+  if (state.phase === 'idle' || state.phase === 'complete') return;
   if (state.currentSeg === 0) return;
   // Confirm if going back would discard a completed segment's time
   if (state.segActuals.length > 0) {
@@ -1105,6 +1111,7 @@ function saveEditModal() {
   state.segActuals[editingSegIndex] = newTime;
   closeEditModal();
   saveState();
+  if (state.phase === 'running' || state.phase === 'paused') updateUI();
   updateSidebar();
   updateTotalClock();
   recalcComplete();
@@ -1299,10 +1306,13 @@ function updateSidebar() {
 
   // Drift summary banner
   if (state.phase !== 'idle' && state.phase !== 'complete') {
-    const totalOriginal = show.segments.reduce((s, seg) => s + seg.target, 0);
-    const timeUsed = state.segActuals.reduce((s, t) => s + t, 0) + state.segElapsed;
-    const budgetUsed = show.segments.slice(0, state.segActuals.length + 1).reduce((s, seg) => s + seg.target, 0);
-    const drift = Math.round(timeUsed - budgetUsed);
+    // Drift from finished segments, plus any live overrun past the current
+    // segment's adjusted target. Time still remaining in the current segment
+    // is not "ahead" — it hasn't been banked yet.
+    const completedDrift = state.segActuals.reduce((s, t, i) => s + (t - show.segments[i].target), 0);
+    const cur = state.segActuals.length;
+    const liveOver = cur < show.segments.length ? Math.max(0, state.segElapsed - adjusted[cur]) : 0;
+    const drift = Math.round(completedDrift + liveOver);
     if (Math.abs(drift) > 2) {
       const cls = drift > 0 ? 'drift-over' : 'drift-under';
       const label = drift > 0 ? `${formatTime(drift)} over pace` : `${formatTime(Math.abs(drift))} ahead`;
