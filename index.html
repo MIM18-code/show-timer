@@ -709,6 +709,7 @@ let state = {
   showStartTime: null,
   segStartTime: null,
   pauseStartTime: null,
+  waiting: false, // paused between segments, next one not started yet
 };
 
 let timerInterval = null;
@@ -768,11 +769,13 @@ function saveState() {
         currentSeg: state.currentSeg,
         segElapsed: state.segElapsed,
         segActuals: state.segActuals,
+        waiting: state.waiting,
         // Absolute wall-clock timestamps, so time keeps counting across a
         // reload or a tab the browser killed in the background.
         segStartTime: state.segStartTime,
         pauseStartTime: state.pauseStartTime,
       },
+      intro: { startTime: introStartTime, recorded: introRecorded },
       savedAt: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -800,6 +803,11 @@ function loadState() {
     state.currentSeg = s.currentSeg;
     state.segElapsed = s.segElapsed;
     state.segActuals = s.segActuals;
+    state.waiting = 'waiting' in s ? s.waiting : (s.phase === 'paused' && s.segElapsed < 0.5);
+    if (data.intro) {
+      introStartTime = data.intro.startTime;
+      introRecorded = data.intro.recorded;
+    }
     if ('segStartTime' in s) {
       state.segStartTime = s.segStartTime;
       state.pauseStartTime = s.pauseStartTime;
@@ -853,7 +861,11 @@ function resetShow() {
     showStartTime: null,
     segStartTime: null,
     pauseStartTime: null,
+    waiting: false,
   };
+  if (introTimerInterval) { clearInterval(introTimerInterval); introTimerInterval = null; }
+  introStartTime = null;
+  introRecorded = null;
   clearSavedState();
   document.getElementById('showComplete').classList.remove('visible');
   document.getElementById('startScreen').style.display = 'flex';
@@ -913,6 +925,7 @@ function toggleStartPause() {
     state.segStartTime += pausedDuration;
     state.pauseStartTime = null;
     state.phase = 'running';
+    state.waiting = false;
     stopBlink();
     requestWakeLock();
     startTimer();
@@ -963,7 +976,7 @@ function tick() {
 function nextSegment() {
   if (state.phase === 'idle' || state.phase === 'complete') return;
   // Block if waiting between segments (nothing running to end)
-  if (state.phase === 'paused' && state.segElapsed < 0.5) return;
+  if (state.phase === 'paused' && state.waiting) return;
   const show = SHOWS[currentShow];
   state.segActuals.push(state.segElapsed);
 
@@ -981,6 +994,7 @@ function nextSegment() {
   state.segElapsed = 0;
   state.phase = 'paused';
   state.pauseStartTime = Date.now();
+  state.waiting = true;
 
   startBlink();
   saveState();
@@ -993,9 +1007,14 @@ function prevSegment() {
   if (state.currentSeg === 0) return;
   // Confirm if going back would discard a completed segment's time
   if (state.segActuals.length > 0) {
-    const prevName = SHOWS[currentShow].segments[state.currentSeg - 1].name;
+    const segs = SHOWS[currentShow].segments;
+    const prevName = segs[state.currentSeg - 1].name;
     const prevTime = formatTime(state.segActuals[state.segActuals.length - 1]);
-    if (!confirm(`Go back to ${prevName}? This will discard the recorded time (${prevTime}) and restart it.`)) return;
+    let msg = `Go back to ${prevName}? This will discard its recorded time (${prevTime}) and restart it.`;
+    if (!state.waiting && state.segElapsed >= 1) {
+      msg += `\n\n${segs[state.currentSeg].name}'s current time (${formatTime(state.segElapsed)}) will also be discarded.`;
+    }
+    if (!confirm(msg)) return;
   }
   stopTimer();
   stopBlink();
@@ -1006,6 +1025,7 @@ function prevSegment() {
   state.segElapsed = 0;
   state.phase = 'paused';
   state.pauseStartTime = Date.now();
+  state.waiting = true;
 
   saveState();
   updateUI();
@@ -1226,7 +1246,7 @@ function updateUI() {
 
   const btnSP = document.getElementById('btnStartPause');
   const btnNext = document.getElementById('btnNext');
-  const isWaiting = state.phase === 'paused' && state.segElapsed < 0.5;
+  const isWaiting = state.phase === 'paused' && state.waiting;
   const isFinalSeg = state.currentSeg >= show.segments.length - 1;
 
   const adjustRow = document.getElementById('adjustRow');
@@ -1440,22 +1460,33 @@ document.addEventListener('keydown', (e) => {
 // ===== INTRO TIMER =====
 let introTimerInterval = null;
 let introStartTime = null;
+let introRecorded = null; // seconds, once the intro is stopped
 let introTargetSec = 10;
 
 function startIntroTimer() {
-  const show = SHOWS[currentShow];
-  const totalActualSegments = state.segActuals.reduce((s, t) => s + t, 0);
-  const drift = totalActualSegments - show.segments.reduce((s, seg) => s + seg.target, 0);
-  introTargetSec = Math.max(1, show.introTarget - drift);
+  introStartTime = Date.now();
+  introRecorded = null;
+  saveState();
+  showIntroRunning();
+}
 
+function computeIntroTarget() {
+  const show = SHOWS[currentShow];
+  const drift = state.segActuals.reduce((s, t) => s + t, 0) - show.segments.reduce((s, seg) => s + seg.target, 0);
+  introTargetSec = Math.max(1, show.introTarget - drift);
+}
+
+function showIntroRunning() {
+  computeIntroTarget();
   document.getElementById('introTime').style.display = 'none';
   document.getElementById('introTimerLive').style.display = '';
   document.getElementById('btnIntroStart').textContent = 'Stop Intro';
   document.getElementById('btnIntroStart').setAttribute('onclick', 'stopIntroTimer()');
   document.getElementById('btnIntroStart').className = 'ctrl-btn primary pause';
 
-  introStartTime = Date.now();
+  if (introTimerInterval) clearInterval(introTimerInterval);
   introTimerInterval = setInterval(tickIntro, 100);
+  tickIntro();
 }
 
 function tickIntro() {
@@ -1485,7 +1516,16 @@ function tickIntro() {
 
 function stopIntroTimer() {
   if (introTimerInterval) { clearInterval(introTimerInterval); introTimerInterval = null; }
-  const elapsed = (Date.now() - introStartTime) / 1000;
+  introRecorded = (Date.now() - introStartTime) / 1000;
+  saveState();
+  showIntroRecorded();
+}
+
+function showIntroRecorded() {
+  computeIntroTarget();
+  const elapsed = introRecorded;
+  document.getElementById('introTime').style.display = 'none';
+  document.getElementById('introTimerLive').style.display = '';
   const cd = document.getElementById('introCountdown');
   const sub = document.getElementById('introCountdownSub');
 
@@ -1525,6 +1565,8 @@ window.addEventListener('beforeunload', (e) => {
       startBlink();
     } else if (state.phase === 'complete') {
       completeShow();
+      if (introRecorded != null) showIntroRecorded();
+      else if (introStartTime != null) showIntroRunning();
     }
     updateUI();
     updateSidebar();
