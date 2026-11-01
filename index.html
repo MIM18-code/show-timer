@@ -751,7 +751,7 @@ function updateWakeLockUI(active) {
 
 // Re-acquire wake lock when tab becomes visible again
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.phase === 'running') {
+  if (document.visibilityState === 'visible' && (state.phase === 'running' || state.phase === 'paused')) {
     requestWakeLock();
   }
 });
@@ -768,9 +768,10 @@ function saveState() {
         currentSeg: state.currentSeg,
         segElapsed: state.segElapsed,
         segActuals: state.segActuals,
-        // Store timestamps as offsets from now so we can restore relative timing
-        segStartTimeOffset: state.segStartTime ? Date.now() - state.segStartTime : null,
-        pauseStartTimeOffset: state.pauseStartTime ? Date.now() - state.pauseStartTime : null,
+        // Absolute wall-clock timestamps, so time keeps counting across a
+        // reload or a tab the browser killed in the background.
+        segStartTime: state.segStartTime,
+        pauseStartTime: state.pauseStartTime,
       },
       savedAt: Date.now(),
     };
@@ -799,8 +800,14 @@ function loadState() {
     state.currentSeg = s.currentSeg;
     state.segElapsed = s.segElapsed;
     state.segActuals = s.segActuals;
-    state.segStartTime = s.segStartTimeOffset != null ? Date.now() - s.segStartTimeOffset : null;
-    state.pauseStartTime = s.pauseStartTimeOffset != null ? Date.now() - s.pauseStartTimeOffset : null;
+    if ('segStartTime' in s) {
+      state.segStartTime = s.segStartTime;
+      state.pauseStartTime = s.pauseStartTime;
+    } else {
+      // Older save format (offsets relative to save time)
+      state.segStartTime = s.segStartTimeOffset != null ? data.savedAt - s.segStartTimeOffset : null;
+      state.pauseStartTime = s.pauseStartTimeOffset != null ? data.savedAt - s.pauseStartTimeOffset : null;
+    }
 
     return true;
   } catch (e) {
@@ -1514,6 +1521,7 @@ window.addEventListener('beforeunload', (e) => {
       requestWakeLock();
       startTimer();
     } else if (state.phase === 'paused') {
+      requestWakeLock();
       startBlink();
     } else if (state.phase === 'complete') {
       completeShow();
